@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BlockGame>
+<Screen>
+   <Size w="1000" h="650"></Size>
+</Screen>
+<GamePanel>
+   <Bg img="gameMedia/map2.png"></Bg>
+   <Block>
+      <Obj x="10" y="10" w="50" h="30" type="1" img="gameMedia/block4.png"></Obj>
+      <Obj x="70" y="10" w="50" h="30" type="2" img="gameMedia/block4.png"></Obj>
+      <Obj x="130" y="10" w="50" h="30" type="3" img="gameMedia/block4.png"></Obj>
+      <Obj x="910" y="50" w="50" h="30" type="2" img="gameMedia/block4.png"></Obj>
+      <Obj x="70" y="50" w="50" h="30" type="2" img="gameMedia/block4.png"></Obj>
+      <Obj x="130" y="50" w="50" h="30" type="2" img="gameMedia/block4.png"></Obj>
+      <Obj x="260" y="90" w="50" h="30" type="3" img="gameMedia/block4.png"></Obj>
+      <Obj x="200" y="130" w="50" h="30" type="3" img="gameMedia/block4.png"></Obj>
+      <Obj x="320" y="130" w="50" h="30" type="3" img="gameMedia/block4.png"></Obj>
+      <Obj x="260" y="170" w="50" h="30" type="3" img="gameMedia/block4.png"></Obj>
+   </Block>
+   <Gun x="668" y="560" w="64" h="80" type="3" img="gameMedia/gun2.png"></Gun>
+   <Bullet w="4" h="20" type="3" img="gameMedia/bullet3.png"></Bullet>
+   <Explosion w="100" h="100" img = "gameMedia/explosion.png"></Explosion>
+   <Bgm src="gameMedia/Game1.mp3"></Bgm>
+</GamePanel>
+</BlockGame>

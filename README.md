@@ -1,1 +1,1 @@
-# StarWarsWebGameWithXML
+#XML Parsing을 이용한 스타워즈 게임

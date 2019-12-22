@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Star Wars Game</title>
+<link href="GameStyleSheet.css" type="text/css" rel="stylesheet" />
+<script>
+var canvas = null;
+var context = null;
+var bullet=null; //bullet객체
+var backGround=null;//bg객체
+var block=null;//block객체
+var gun=null;//gun객체
+var explosion=null;//충돌이미지객체
+var bulletIndex = -1; //총알이미지가리킬인덱스
+var explosionIndex = -1;
+var timerID =[];
+var score = 0;
+var remainTime = null;
+var statusTimer = null;
+var mouseFlag = false;
+//초기화
+function run(xmlDoc) {
+
+   var status = document.createElement("span");
+   status.setAttribute("id","statusbar");
+   status.style.color = "red";
+   status.style.fontSize = "50px";
+   status.style.marginLeft = "80px";
+   document.body.appendChild(status);
+   remainTime = 60; // 제한시간
+   statusTimer = setInterval("makeStatus()","1000");
+
+
+  canvas = document.createElement("canvas"); // 캔버스 생성
+  canvas.width = xmlDoc.getElementsByTagName("Size")[0].getAttribute("w");
+  canvas.height = xmlDoc.getElementsByTagName("Size")[0].getAttribute("h");
+  document.body.appendChild(canvas); // 바디에 캔버스 추가
+  context = canvas.getContext("2d");
+
+  var audio = new Audio();
+  audio.src = xmlDoc.getElementsByTagName("Bgm")[0].getAttribute("src");
+  audio.loop = true;
+  audio.autoplay = true;
+  document.body.appendChild(audio); // 바디에 오디오 추가
+
+  backGround = new BackGround(xmlDoc);
+  block = new Block(xmlDoc);
+  gun = new Gun(xmlDoc);
+  bullet = new Bullet(xmlDoc, gun.gunX, gun.gunY, gun.gunW, gun.gunH);
+  queue = new Queue(50);
+  explosion = new Explosion(xmlDoc);
+
+  backGround.bgImage.onload = function () {
+    mouseFlag =true;
+    //bg 그리기
+    backGround.drawBg();
+    //gun 그리기
+    gun.gunImage.onload = function () {
+      gun.drawGun();
+    }
+    //block 그리기
+    for(let i=0; i<block.blockImages.length; i++) {
+      block.blockImages[i].onload = function () {
+        block.drawBlock(i);
+      }
+    }
+  }
+
+   canvas.addEventListener("mousemove", function (e) {
+     if(mouseFlag == true){
+     gun.move(e);
+     context.clearRect(0, 0, canvas.width, canvas.height);
+     rePaint(backGround, gun, block,bullet,explosion)
+    }
+    }, false);
+
+
+    canvas.addEventListener("click",initBullet);
+}
+
+function initBullet(){
+  bulletIndex++;
+    if(bulletIndex>=50){
+      bulletIndex = 0;
+    }
+
+    let x = gun.gunGetX();
+    let y = gun.gunGetY();
+    let w = gun.gunGetW();
+
+    bullet.setBullet(bulletIndex,x,y,w);
+    queue.enqueue(bulletIndex);
+    timerID[bulletIndex] = setInterval("bullet.shooting(" + bulletIndex + ")",50);
+}
+
+function rePaint(backGround, gun, block,bullet,explosion) {
+  backGround.drawBg();
+  gun.drawGun();
+  for(let i=0; i<block.blockImages.length; i++) {
+    if(block.getBlockFlag(i)){
+      block.drawBlock(i);
+    }
+  }
+  let tmp = queue.frontIndex;
+  for(let i=0;i<queue.getdataNum();i++){
+     tmp++;
+     tmp %= queue.capacity;
+     var n = queue.data[tmp];
+     if(bullet.bulletFlag[n] == true){
+      bullet.drawBullet(n);
+      }
+    }
+
+  for(let i=0;i<explosion.explosionImage.length;i++){
+      if(explosion.explosionTime[i] != 0){
+        explosion.drawExplosion(i);
+        explosion.explosionTime[i]--;
+      }
+  }
+}
+
+
+function makeStatus(){
+        var obj = document.getElementById("statusbar");
+        remainTime--;
+        obj.innerHTML = "&nbsp;&nbsp; SCORE : " + score + "&nbsp;&nbsp; TIME : " + remainTime;
+        if(remainTime == 0)//남은시간0이므로 감소
+        {
+          let tmp = queue.frontIndex;
+          for(let i=0;i<queue.getdataNum();i++){
+              tmp++;
+              tmp %= queue.capacity;
+              var n = queue.data[tmp];
+              clearInterval(timerID[n]);
+          }
+          for(let i=0;i<block.blockImages.length;i++){
+                clearInterval(block.blockTimerID[i]);
+          }
+          mouseFlag = false;
+          clearInterval(statusTimer);
+
+          context.fillStyle="red";
+          context.font = "150px Arial";
+          context.fillText("GAME OVER !",50,250);
+          context.font = "100px Arial";
+          context.fillText("SCORE : " + score ,170,460);
+          canvas.removeEventListener("click",initBullet);//마우스를 클릭하면 총알을 발사시키는 이벤트리스너 제거
+        }
+}
+
+class BackGround {
+  constructor(xmlDoc) {
+    this.bgImage = new Image();
+    this.bgImage.src = xmlDoc.getElementsByTagName("Bg")[0].getAttribute("img");
+  }
+  drawBg() {
+    context.drawImage(this.bgImage,0,0,canvas.width,canvas.height);
+  }
+}
+
+class Block {
+  constructor(xmlDoc) {
+    this.blockdie = 0;
+    this.blockImages = [];
+    this.blockX = [];
+    this.blockY = [];
+    this.blockW = [];
+    this.blockH = [];
+    this.blockFlag = [];
+    this.blockType = [];
+    this.blockDirection =[]; //1 : 오른쪽 0 :왼쪽
+    this.blockTimerID=[];
+    this.blockCount = [];
+    let xmlBlock = xmlDoc.getElementsByTagName("Obj");
+    for(let i=0; i<xmlBlock.length; i++) {
+       this.blockImages[i] = new Image();
+       this.blockImages[i].src = xmlBlock[i].getAttribute("img");
+       this.blockX[i] = parseInt(xmlBlock[i].getAttribute("x"));
+       this.blockY[i] = parseInt(xmlBlock[i].getAttribute("y"));
+       this.blockW[i] = parseInt(xmlBlock[i].getAttribute("w"));
+       this.blockH[i] = parseInt(xmlBlock[i].getAttribute("h"));
+       this.blockFlag[i] = true;
+       this.blockType[i] = xmlBlock[i].getAttribute("type");
+       this.blockCount[i] = xmlBlock[i].getAttribute("type");
+       if(this.blockType[i]%2 == 0){
+         this.blockDirection[i] = 1;
+        }
+        else if(this.blockType[i]%2 == 1)
+        {
+          this.blockDirection[i] = 0;
+        }
+
+       this.blockTimerID[i] = setInterval("block.blockMove(" + i+ ")","50");
+     }
+  }
+  drawBlock(i) {
+    if(this.blockFlag[i] == true){
+    context.drawImage(this.blockImages[i],this.blockX[i],this.blockY[i],this.blockW[i],this.blockH[i]);
+    }
+  }
+  getBlockFlag(i){
+    if(this.blockFlag[i]==true)
+      return true;
+    else
+      return false;
+  }
+  addScore(i){
+    switch(i){
+    case "1" : score += 50; break;
+    case "2" : score += 100; break;
+    case "3" : score += 150; break;
+    case "6" : score += 300; break;
+    }
+  }
+  blockMove(i){
+    if(this.blockDirection[i] == 1){ // 오른쪽방향일때
+      this.blockX[i] +=3;
+      if(this.blockX[i]>(canvas.width-this.blockW[i])){
+        this.blockDirection[i] = 0;
+        this.blockX[i] -=4;
+
+      }
+    }
+    else if(this.blockDirection[i] == 0){ //왼쪽방향일때
+      this.blockX[i] -=3;
+      if(this.blockX[i]<0){
+        this.blockDirection[i] = 1;
+        this.blockX[i] +=4;
+        }
+    }
+
+    rePaint(backGround, gun, block,bullet,explosion)
+  }
+}
+
+class Gun {
+  constructor(xmlDoc) {
+    let xmlGun = xmlDoc.getElementsByTagName("Gun")[0];
+    this.gunImage = new Image();
+    this.gunImage.src = xmlGun.getAttribute("img");
+    this.gunX = xmlGun.getAttribute("x");
+    this.gunY = xmlGun.getAttribute("y");
+    this.gunW = xmlGun.getAttribute("w");
+    this.gunH = xmlGun.getAttribute("h");
+  }
+  gunGetX(){
+    return this.gunX;
+  }
+  gunGetY(){
+    return this.gunY;
+  }
+  gunGetW(){
+    return this.gunW;
+  }
+  gunGetH(){
+    return this.gunH;
+  }
+
+  drawGun() {
+    context.drawImage(this.gunImage,this.gunX,this.gunY,this.gunW,this.gunH);
+  }
+  move(e) {
+     this.gunX = e.offsetX - this.gunW/2;
+  }
+}
+class Queue{
+    constructor(capacity){
+    this.capacity = capacity;
+    this.data = new Array(this.capacity);
+    this.frontIndex = 0;
+    this.rearIndex = 0;
+    this.dataNum = 0;
+    }
+    //enqueue 메소드
+    enqueue(element){
+        if(this.isFull() == false){
+            this.rearIndex++;
+            this.rearIndex %= this.capacity;
+            this.data[this.rearIndex] = element;
+            this.PlusdataNum();
+            return true;
+        }
+        return false;
+    }
+    //dequeue 메소드
+    dequeue(){
+        if( this.isEmpty() == false ){
+        this.frontIndex++;
+        this.frontIndex %= this.capacity;
+        this.data[this.frontIndex] = null;
+        this.dataNum--;
+    }
+    return null;
+    }
+    PlusdataNum(){
+        this.dataNum += 1;
+    }
+
+    getdataNum(){
+        return this.dataNum;
+    }
+
+    isFull(){
+    if(this.frontIndex == (this.rearIndex+1) % this.capacity)
+        return true;
+    else
+        return false;
+    }
+    isEmpty(){
+    if(this.frontIndex == this.rearIndex)
+        return true;
+    else
+        return false;
+    }
+}
+class Bullet {
+  constructor(xmlDoc, gunX, gunY, gunW, gunH) {
+    let xmlBullet = xmlDoc.getElementsByTagName("Bullet")[0];
+    this.bulletArray = [];
+    this.bulletW = [];
+    this.bulletH = [];
+    this.bulletX = [];
+    this.bulletY = [];
+    this.bulletFlag =[];
+    this.bulletNum = 50;
+    for(let i=0;i<this.bulletNum;i++){
+      this.bulletArray[i] = new Image();//총알 이미지 객체생성
+      this.bulletArray[i].src = xmlBullet.getAttribute("img");//총알이미지삽입
+      this.bulletW[i] = parseInt(xmlBullet.getAttribute("w"));//총알의 너비
+      this.bulletH[i] = parseInt(xmlBullet.getAttribute("h")); //총알의 높이
+      this.bulletFlag[i] = false;//플래그 false로 선언
+    }
+  }
+  setBullet(i,x,y,w){
+    this.bulletX[i] = parseInt(x) + parseInt(w)/2 - this.bulletW[i]/2;
+    this.bulletY[i] = parseInt(y) - this.bulletH[i];
+    this.bulletFlag[i] = true;
+  }
+  getBulletFlag(i){
+    if(this.bulletFlag[i] == true)
+      return true;
+    else
+      return false;
+  }
+
+
+  drawBullet(i) {
+    context.drawImage(this.bulletArray[bulletIndex], this.bulletX[i], this.bulletY[i], this.bulletW[i], this.bulletH[i]);
+  }
+  shooting(i){
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    this.bulletY[i] -= 10;
+    //y좌표 넘어갈시 없애는 코드
+    if(this.bulletY[i]<0){
+      clearInterval(timerID[i]);
+      this.bulletFlag[i] = false;
+      queue.dequeue();
+    }
+
+    //충돌일어나는코드
+    for(let j=0;j<block.blockImages.length;j++){
+       if(block.blockFlag[j] == true){
+          if(this.bulletY[i] == parseInt(block.blockY[j]) + parseInt(block.blockH[j]) ){
+            if(parseInt(block.blockX[j]) < this.bulletX[i] && (parseInt(block.blockX[j])+parseInt(block.blockW[j])) > this.bulletX[i]
+               || parseInt(block.blockX[j]) < this.bulletX[i] + this.bulletW[i] && (parseInt(block.blockX[j])+parseInt(block.blockW[j])) > this.bulletX[i]+this.bulletW[i]){
+
+                    block.blockCount[j]--; //블록의 체력 1감소
+
+                    if(block.blockCount[j]==0){//블록의 체력이 0이되면 제거하고 스코어 증가
+                    clearInterval(block.blockTimerID[j]);
+                    block.blockFlag[j] = false;
+
+                    block.blockdie++;
+                    if(block.blockdie == block.blockImages.length) {
+                      let tmp = queue.frontIndex;
+                      for(let i=0; i<queue.getdataNum(); i++){
+                          tmp++;
+                          tmp %= queue.capacity;
+                          var n = queue.data[tmp];
+                          clearInterval(timerID[n]);
+                      }
+                      for(let i=0;i<block.blockImages.length;i++){
+                            clearInterval(block.blockTimerID[i]);
+                      }
+                      mouseFlag = false;
+                      clearInterval(statusTimer);
+
+                      context.fillStyle="red";
+                      context.font = "150px Arial";
+                      context.fillText("GAME OVER !",50,250);//마우스를 클릭하면 총알을 발사시키는 이벤트리스너 제거
+                      context.font = "100px Arial";
+                      context.fillText("SCORE : " + score ,170,460);
+                      canvas.removeEventListener("click",initBullet);
+                      return;
+                    }
+
+                    block.addScore(block.blockType[j]);
+                    explosionIndex++;
+                    explosion.setExplosion(block.blockX[j],block.blockY[j],explosionIndex);
+                    }
+                    this.bulletFlag[i] = false;
+                    this.bulletX[i] = null;
+                    this.bulletY[i] = null;
+                    clearInterval(timerID[i]);
+                    queue.dequeue();
+            }
+          }
+        }
+    }
+
+    rePaint(backGround, gun, block,bullet,explosion)
+  }
+}
+
+class Explosion{
+  constructor(xmlDoc) {
+    let xmlGun = xmlDoc.getElementsByTagName("Explosion")[0];
+    this.explosionImage=[];
+    this.explosionX =[];
+    this.explosionY =[];
+    this.explosionW =[];
+    this.explosionH =[];
+    this.explosionTime = [];
+
+    for(let i=0;i<block.blockImages.length;i++){
+    this.explosionImage[i] = new Image();
+    this.explosionImage[i].src = xmlGun.getAttribute("img");
+    this.explosionX[i] = null;
+    this.explosionY[i] = null;
+    this.explosionW[i] = xmlGun.getAttribute("w");
+    this.explosionH[i] = xmlGun.getAttribute("h");
+    this.explosionTime[i] = 0 ;
+    }
+  }
+
+  setExplosion(x,y,i){
+    this.explosionX[i] = x;
+    this.explosionY[i] = y;
+    this.explosionTime[i] = 100;
+  }
+
+  drawExplosion(i) {
+    console.log(explosionIndex);
+    if(this.explosionTime[i] != 0){
+    context.drawImage(this.explosionImage[i],this.explosionX[i],this.explosionY[i],this.explosionW[i],this.explosionH[i]);
+    }
+  }
+  getExplosion(i){
+    if(this.this.explosionTime[i] != 0)
+      return true;
+    else
+      return false;
+  }
+}
+function loadXML(xmlFile) { // xmlfile을 웹 서버로부터 다운로드 받는다.
+   // HTTP 비동기 객체 만들기
+   var req = new XMLHttpRequest();
+
+   // 요청 패킷 만들기
+   req.open("GET", xmlFile, true);
+
+   // 캐시된 testxml2.xml을 무시하고 서버로부터 받도록 요청 패킷제 설벙
+   req.setRequestHeader("Cache-Control", "no-cache"); // ope() 이후에 호출되어야 함
+
+   // 서버로부터 응답을 받은 리스너 등록.
+   // req.send() 전에 등록하는 것이 정상적인 코딩임.
+   // 리스너를 등록하는 사이에 응답이 올지도 모르기 때문
+   req.onreadystatechange = function () {
+      if (this.readyState != 4 || this.status != 200)
+         return;
+
+    run(this.responseXML);
+   }
+
+   req.send(); // 요청 패킷 전송. 이 패킷을 받은 서버는 요청에 들어 있는 파일을 찾아 전송.
+   // 서버로부터 응답이 오면 onreadystatechanged 리스너 호출
+}
+</script>
+
+
+</head>
+<body onload="loadXML('game1.xml')">
+  <div id="title"><a href="main.html"><img class="title" src="gameMedia/title1.png" /><img class="title" src="gameMedia/title2.png"></a></div>
+  <nav>
+    <ul id="main">
+      <li><a href="Manual.html">Manual</a>
+      <li><a href="Game.html">Game</a>
+      <li><a href="Creator.html">Creator</a>
+    </ul>
+  </nav>
+</body>
+</html>
