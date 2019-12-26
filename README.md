@@ -4,6 +4,7 @@
  - 제한시간 60초<br/>
 
 <h2>ScreenShots</h2>
+
 - 기본 화면
 <img width="500" height="500" src="https://user-images.githubusercontent.com/44339530/71462268-25edc900-27f6-11ea-9173-b849794de87f.PNG"/>
   
